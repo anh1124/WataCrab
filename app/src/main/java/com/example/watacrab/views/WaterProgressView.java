@@ -10,6 +10,8 @@ import android.util.AttributeSet;
 import android.view.View;
 import android.view.animation.LinearInterpolator;
 
+import com.example.watacrab.R;
+
 public class WaterProgressView extends View {
     private Paint wavePaint;
     private Path wavePath;
@@ -34,7 +36,7 @@ public class WaterProgressView extends View {
 
     private void init() {
         wavePaint = new Paint();
-        wavePaint.setColor(Color.parseColor("#4CAF50"));
+        wavePaint.setColor(getResources().getColor(R.color.blue1));
         wavePaint.setStyle(Paint.Style.FILL);
         wavePaint.setAntiAlias(true);
 
