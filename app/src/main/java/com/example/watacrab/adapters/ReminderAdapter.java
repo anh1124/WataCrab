@@ -4,6 +4,7 @@ import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Build;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -23,6 +24,7 @@ import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
@@ -167,20 +169,27 @@ public class ReminderAdapter extends RecyclerView.Adapter<ReminderAdapter.Remind
             return;
         }
         
+        // Tạo Intent với action cụ thể để tăng độ chính xác
         Intent intent = new Intent(context, ReminderReceiver.class);
+        intent.setAction("com.example.watacrab.ACTION_SHOW_REMINDER");
         intent.putExtra("REMINDER_ID", reminder.getId());
         intent.putExtra("REMINDER_TITLE", reminder.getTitle());
+        // Thêm timestamp để đảm bảo intent luôn mới và độc nhất
+        intent.putExtra("TIMESTAMP", System.currentTimeMillis());
         
         // Tạo ID duy nhất cho PendingIntent dựa trên ID của reminder
         int requestCode = reminder.getId().hashCode();
         
         // Log chi tiết để debug
+        Log.d(TAG, "====== ĐẶT LỊCH BÁO THỨC MỚI ======");
         Log.d(TAG, "Đặt lịch cho lời nhắc ID: " + reminder.getId());
         Log.d(TAG, "Tiêu đề: " + reminder.getTitle());
         Log.d(TAG, "Thời gian: " + reminder.getTime());
+        Log.d(TAG, "Request code: " + requestCode);
         
         PendingIntent pendingIntent;
         try {
+            // Sử dụng FLAG_UPDATE_CURRENT để cập nhật nếu đã tồn tại
             pendingIntent = PendingIntent.getBroadcast(
                     context,
                     requestCode,
@@ -201,49 +210,180 @@ public class ReminderAdapter extends RecyclerView.Adapter<ReminderAdapter.Remind
         Calendar calendar = Calendar.getInstance();
         calendar.setTime(reminder.getTime());
         
-        // So sánh với thời gian hiện tại
+        // Chỉ giữ giờ và phút, đặt báo thức cho ngày hôm nay
+        int hour = calendar.get(Calendar.HOUR_OF_DAY);
+        int minute = calendar.get(Calendar.MINUTE);
+        
+        // Lấy thời gian hiện tại
         Calendar now = Calendar.getInstance();
         
+        // Đặt thời gian vào hôm nay
+        Calendar alarmTime = Calendar.getInstance();
+        alarmTime.set(Calendar.HOUR_OF_DAY, hour);
+        alarmTime.set(Calendar.MINUTE, minute);
+        alarmTime.set(Calendar.SECOND, 0);
+        alarmTime.set(Calendar.MILLISECOND, 0);
+        
         // Nếu thời gian đã qua và là lời nhắc lặp lại, đặt cho ngày tiếp theo
-        if (calendar.before(now) && reminder.isDaily()) {
-            calendar.add(Calendar.DAY_OF_YEAR, 1);
-            Log.d(TAG, "Thời gian đã qua, đặt cho ngày mai: " + calendar.getTime());
+        if (alarmTime.before(now) && reminder.isDaily()) {
+            alarmTime.add(Calendar.DAY_OF_YEAR, 1);
+            Log.d(TAG, "Thời gian đã qua, đặt cho ngày mai: " + alarmTime.getTime());
         }
         
         // Nếu thời gian đã qua và không lặp lại, không thiết lập
-        if (calendar.before(now) && !reminder.isDaily()) {
+        if (alarmTime.before(now) && !reminder.isDaily()) {
             Log.d(TAG, "Thời gian nhắc nhở đã qua và không lặp lại, bỏ qua");
             return;
         }
         
-        Log.d(TAG, "Thiết lập lời nhắc tại: " + calendar.getTime());
+        // Tính thời gian chờ đến báo thức theo giây và phút
+        long timeUntilAlarm = (alarmTime.getTimeInMillis() - now.getTimeInMillis()) / 1000;
+        long minutes = timeUntilAlarm / 60;
+        long seconds = timeUntilAlarm % 60;
+        
+        Log.d(TAG, "Thiết lập lời nhắc tại: " + alarmTime.getTime());
+        Log.d(TAG, String.format("Báo thức sẽ kích hoạt sau: %d phút %d giây", minutes, seconds));
         
         try {
+            // Hủy báo thức hiện tại (nếu có) để đảm bảo không bị trùng lặp
+            alarmManager.cancel(pendingIntent);
+            
+            // Sử dụng các phương pháp khác nhau để đảm bảo báo thức hoạt động
             if (reminder.isDaily()) {
-                // Nếu lặp lại hàng ngày, sử dụng setRepeating
-                alarmManager.setRepeating(
-                        AlarmManager.RTC_WAKEUP,
-                        calendar.getTimeInMillis(),
-                        AlarmManager.INTERVAL_DAY,
-                        pendingIntent
-                );
-                Log.d(TAG, "Đã đặt lời nhắc lặp lại hàng ngày");
-            } else {
-                // Nếu chỉ một lần
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                // Đối với lời nhắc hàng ngày
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    // Android 12+ cần quyền SCHEDULE_EXACT_ALARM
+                    if (alarmManager.canScheduleExactAlarms()) {
+                        alarmManager.setExactAndAllowWhileIdle(
+                                AlarmManager.RTC_WAKEUP,
+                                alarmTime.getTimeInMillis(),
+                                pendingIntent
+                        );
+                        Log.d(TAG, "Android 12+: Báo thức chính xác đã được đặt");
+                    } else {
+                        alarmManager.setAndAllowWhileIdle(
+                                AlarmManager.RTC_WAKEUP,
+                                alarmTime.getTimeInMillis(),
+                                pendingIntent
+                        );
+                        Log.d(TAG, "Android 12+ (không có quyền EXACT): Báo thức không chính xác đã được đặt");
+                    }
+                    
+                    // Đặt báo thức lặp lại riêng biệt (cho phép báo thức hàng ngày)
+                    PendingIntent repeatingIntent = PendingIntent.getBroadcast(
+                            context,
+                            requestCode + 100000, // ID khác để tránh xung đột
+                            intent,
+                            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+                    );
+                    
+                    alarmManager.setRepeating(
+                            AlarmManager.RTC_WAKEUP,
+                            alarmTime.getTimeInMillis() + AlarmManager.INTERVAL_DAY, // Bắt đầu từ ngày mai
+                            AlarmManager.INTERVAL_DAY,
+                            repeatingIntent
+                    );
+                    Log.d(TAG, "Đã đặt báo thức lặp lại riêng biệt");
+                    
+                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    // Android 6.0+ nhưng dưới Android 12
                     alarmManager.setExactAndAllowWhileIdle(
                             AlarmManager.RTC_WAKEUP,
-                            calendar.getTimeInMillis(),
+                            alarmTime.getTimeInMillis(),
                             pendingIntent
                     );
-                    Log.d(TAG, "Đã đặt lời nhắc chính xác (ExactAndAllowWhileIdle)");
+                    Log.d(TAG, "Android 6.0+: Báo thức chính xác đã được đặt");
+                    
+                    // Sử dụng setRepeating để báo thức hàng ngày
+                    PendingIntent repeatingIntent = PendingIntent.getBroadcast(
+                            context,
+                            requestCode + 100000, // ID khác để tránh xung đột 
+                            intent,
+                            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+                    );
+                    
+                    alarmManager.setRepeating(
+                            AlarmManager.RTC_WAKEUP,
+                            alarmTime.getTimeInMillis() + AlarmManager.INTERVAL_DAY, // Bắt đầu từ ngày mai
+                            AlarmManager.INTERVAL_DAY,
+                            repeatingIntent
+                    );
+                    Log.d(TAG, "Đã đặt báo thức lặp lại riêng biệt");
+                    
                 } else {
+                    // Phiên bản Android cũ
+                    alarmManager.setRepeating(
+                            AlarmManager.RTC_WAKEUP,
+                            alarmTime.getTimeInMillis(),
+                            AlarmManager.INTERVAL_DAY,
+                            pendingIntent
+                    );
+                    Log.d(TAG, "Android cũ: Đã đặt lời nhắc lặp lại hàng ngày");
+                }
+            } else {
+                // Đối với thông báo một lần
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    // Android 12+ cần quyền SCHEDULE_EXACT_ALARM
+                    if (alarmManager.canScheduleExactAlarms()) {
+                        alarmManager.setExactAndAllowWhileIdle(
+                                AlarmManager.RTC_WAKEUP,
+                                alarmTime.getTimeInMillis(),
+                                pendingIntent
+                        );
+                        Log.d(TAG, "Android 12+: Báo thức chính xác đã được đặt (một lần)");
+                    } else {
+                        alarmManager.setAndAllowWhileIdle(
+                                AlarmManager.RTC_WAKEUP,
+                                alarmTime.getTimeInMillis(),
+                                pendingIntent
+                        );
+                        Log.d(TAG, "Android 12+ (không có quyền EXACT): Báo thức không chính xác đã được đặt (một lần)");
+                    }
+                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    // Android 6.0+ nhưng dưới Android 12
+                    alarmManager.setExactAndAllowWhileIdle(
+                            AlarmManager.RTC_WAKEUP,
+                            alarmTime.getTimeInMillis(),
+                            pendingIntent
+                    );
+                    Log.d(TAG, "Android 6.0+: Báo thức chính xác đã được đặt (một lần)");
+                } else {
+                    // Phiên bản Android cũ
                     alarmManager.setExact(
                             AlarmManager.RTC_WAKEUP,
-                            calendar.getTimeInMillis(),
+                            alarmTime.getTimeInMillis(),
                             pendingIntent
                     );
-                    Log.d(TAG, "Đã đặt lời nhắc chính xác (setExact)");
+                    Log.d(TAG, "Android cũ: Đã đặt báo thức chính xác (một lần)");
+                }
+            }
+            
+            // Đặt báo thức cho 1 phút trước thời gian chính (dự phòng)
+            if (alarmTime.getTimeInMillis() - now.getTimeInMillis() > 60 * 1000) {
+                Calendar backupAlarmTime = (Calendar) alarmTime.clone();
+                backupAlarmTime.add(Calendar.MINUTE, -1);
+                
+                PendingIntent backupIntent = PendingIntent.getBroadcast(
+                        context,
+                        requestCode + 200000, // ID khác để tránh xung đột
+                        intent,
+                        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+                );
+                
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    alarmManager.setAndAllowWhileIdle(
+                            AlarmManager.RTC_WAKEUP,
+                            backupAlarmTime.getTimeInMillis(),
+                            backupIntent
+                    );
+                    Log.d(TAG, "Đã đặt báo thức dự phòng (1 phút trước): " + backupAlarmTime.getTime());
+                } else {
+                    alarmManager.set(
+                            AlarmManager.RTC_WAKEUP,
+                            backupAlarmTime.getTimeInMillis(),
+                            backupIntent
+                    );
+                    Log.d(TAG, "Đã đặt báo thức dự phòng (1 phút trước): " + backupAlarmTime.getTime());
                 }
             }
             
@@ -251,26 +391,115 @@ public class ReminderAdapter extends RecyclerView.Adapter<ReminderAdapter.Remind
             boolean pendingIntentExists = (PendingIntent.getBroadcast(context, requestCode, intent, 
                     PendingIntent.FLAG_NO_CREATE | PendingIntent.FLAG_IMMUTABLE) != null);
             Log.d(TAG, "PendingIntent tồn tại: " + pendingIntentExists);
+            Log.d(TAG, "===================================");
+            
+            // Một số thiết bị (như Xiaomi) cần hỏi người dùng về autostart
+            checkForRestrictedDevices(context, reminder.getTitle());
             
         } catch (Exception e) {
             Log.e(TAG, "Lỗi khi đặt báo thức: " + e.getMessage());
         }
     }
     
+    /**
+     * Kiểm tra các thiết bị có giới hạn đặc biệt và hiển thị hướng dẫn phù hợp
+     */
+    private static void checkForRestrictedDevices(Context context, String reminderTitle) {
+        String manufacturer = Build.MANUFACTURER.toLowerCase(Locale.getDefault());
+        
+        if (manufacturer.contains("xiaomi") || manufacturer.contains("redmi") || manufacturer.contains("poco")) {
+            Toast.makeText(context, 
+                    "Lời nhắc '" + reminderTitle + "' đã được đặt. Vui lòng vào Cài đặt > Ứng dụng > WataCrab > Tự khởi động để đảm bảo thông báo hoạt động.", 
+                    Toast.LENGTH_LONG).show();
+            
+            Log.d(TAG, "Thiết bị Xiaomi/MIUI được phát hiện, có thể cần mở 'Autostart'");
+        } 
+        else if (manufacturer.contains("huawei") || manufacturer.contains("honor")) {
+            Toast.makeText(context, 
+                    "Lời nhắc '" + reminderTitle + "' đã được đặt. Vui lòng vào Cài đặt > Ứng dụng > WataCrab > Ứng dụng được bảo vệ để đảm bảo thông báo hoạt động.", 
+                    Toast.LENGTH_LONG).show();
+            
+            Log.d(TAG, "Thiết bị Huawei/EMUI được phát hiện, có thể cần mở 'Protected apps'");
+        }
+        else if (manufacturer.contains("oppo") || manufacturer.contains("realme") || manufacturer.contains("oneplus")) {
+            Toast.makeText(context, 
+                    "Lời nhắc '" + reminderTitle + "' đã được đặt. Vui lòng vào Cài đặt > Quản lý pin > Tự khởi động để đảm bảo thông báo hoạt động.", 
+                    Toast.LENGTH_LONG).show();
+            
+            Log.d(TAG, "Thiết bị OPPO/ColorOS được phát hiện, có thể cần mở 'Auto-launch'");
+        }
+        else if (manufacturer.contains("vivo")) {
+            Toast.makeText(context, 
+                    "Lời nhắc '" + reminderTitle + "' đã được đặt. Vui lòng vào i Manager > Quản lý App > Khởi động tự động để đảm bảo thông báo hoạt động.", 
+                    Toast.LENGTH_LONG).show();
+            
+            Log.d(TAG, "Thiết bị Vivo được phát hiện, có thể cần mở 'Auto-start'");
+        }
+        else if (manufacturer.contains("samsung")) {
+            Toast.makeText(context, 
+                    "Lời nhắc '" + reminderTitle + "' đã được đặt. Vui lòng vào Cài đặt > Ứng dụng > WataCrab > Pin > không tối ưu hóa để đảm bảo thông báo hoạt động.", 
+                    Toast.LENGTH_LONG).show();
+            
+            Log.d(TAG, "Thiết bị Samsung được phát hiện, có thể cần tắt 'Optimizing battery usage'");
+        }
+        else {
+            Toast.makeText(context, 
+                    "Lời nhắc '" + reminderTitle + "' đã được đặt lúc " + 
+                    new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date()), 
+                    Toast.LENGTH_SHORT).show();
+        }
+    }
+    
     // Hàm hủy lời nhắc
     public static void cancelReminder(Context context, Reminder reminder) {
         AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        if (alarmManager == null) {
+            Log.e(TAG, "AlarmManager không khả dụng");
+            return;
+        }
+        
+        // Tạo Intent giống hệt lúc đặt lịch
         Intent intent = new Intent(context, ReminderReceiver.class);
+        intent.setAction("com.example.watacrab.ACTION_SHOW_REMINDER");
+        intent.putExtra("REMINDER_ID", reminder.getId());
+        
         int requestCode = reminder.getId().hashCode();
         
-        PendingIntent pendingIntent = PendingIntent.getBroadcast(
-                context,
-                requestCode,
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-        );
-        
-        alarmManager.cancel(pendingIntent);
-        Log.d(TAG, "Đã hủy lời nhắc với ID: " + reminder.getId());
+        // Hủy pending intent chính
+        try {
+            PendingIntent pendingIntent = PendingIntent.getBroadcast(
+                    context,
+                    requestCode,
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+            );
+            
+            alarmManager.cancel(pendingIntent);
+            pendingIntent.cancel();
+            
+            // Hủy pending intent lặp lại (nếu có)
+            PendingIntent repeatingIntent = PendingIntent.getBroadcast(
+                    context,
+                    requestCode + 100000,
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+            );
+            alarmManager.cancel(repeatingIntent);
+            repeatingIntent.cancel();
+            
+            // Hủy pending intent dự phòng (nếu có)
+            PendingIntent backupIntent = PendingIntent.getBroadcast(
+                    context,
+                    requestCode + 200000,
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+            );
+            alarmManager.cancel(backupIntent);
+            backupIntent.cancel();
+            
+            Log.d(TAG, "Đã hủy lời nhắc với ID: " + reminder.getId());
+        } catch (Exception e) {
+            Log.e(TAG, "Lỗi khi hủy lời nhắc: " + e.getMessage());
+        }
     }
 } 
