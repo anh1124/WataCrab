@@ -27,6 +27,7 @@ import com.example.watacrab.views.WaterProgressView;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.FirebaseFirestoreException;
+import com.google.firebase.firestore.QueryDocumentSnapshot;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -35,12 +36,13 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
-public class HomeFragment extends Fragment {
+public class HomeFragment extends Fragment implements WaterLogAdapter.OnWaterLogDeleteListener {
     private static final String TAG = "HomeFragment";
     private static final int MAX_WATER = 2000;
 
     private TextView dateTextView;
     private TextView waterAmountText;
+    private TextView welcomeUserTextView;
     private WaterProgressView waterProgressView;
     private SeekBar waterSeekBar;
     private RecyclerView waterLogsRecyclerView;
@@ -73,11 +75,13 @@ public class HomeFragment extends Fragment {
         waterProgressView = view.findViewById(R.id.waterProgressView);
         waterSeekBar = view.findViewById(R.id.waterSeekBar);
         waterLogsRecyclerView = view.findViewById(R.id.waterLogsRecyclerView);
+        welcomeUserTextView = view.findViewById(R.id.welcomeUserTextView);
         ImageButton previousDayButton = view.findViewById(R.id.previousDayButton);
         ImageButton nextDayButton = view.findViewById(R.id.nextDayButton);
 
         // Setup RecyclerView
         waterLogAdapter = new WaterLogAdapter(waterLogs);
+        waterLogAdapter.setOnWaterLogDeleteListener(this);
         waterLogsRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
         waterLogsRecyclerView.setAdapter(waterLogAdapter);
 
@@ -121,8 +125,17 @@ public class HomeFragment extends Fragment {
                 
                 currentUser = user;
                 if (user != null) {
+                    // Cập nhật lời chào với tên người dùng
+                    String username = user.getUsername();
+                    if (username != null && !username.isEmpty()) {
+                        welcomeUserTextView.setText("Xin chào, " + username + "!");
+                    } else {
+                        welcomeUserTextView.setText("Xin chào, bạn!");
+                    }
+                    
                     loadWaterLogs();
                 } else {
+                    welcomeUserTextView.setText("Xin chào, bạn!");
                     Toast.makeText(getContext(), "Vui lòng đăng nhập để theo dõi lượng nước", 
                         Toast.LENGTH_SHORT).show();
                 }
@@ -324,10 +337,16 @@ public class HomeFragment extends Fragment {
                     Log.d(TAG, "Successfully loaded " + queryDocumentSnapshots.size() + " water logs");
                     waterLogs.clear();
                     int totalAmount = 0;
-                    for (WaterLog log : queryDocumentSnapshots.toObjects(WaterLog.class)) {
+                    
+                    // Thay đổi cách xử lý kết quả để lấy ID từ document
+                    for (QueryDocumentSnapshot document : queryDocumentSnapshots) {
+                        WaterLog log = document.toObject(WaterLog.class);
+                        log.setId(document.getId()); // Thiết lập ID từ document
                         waterLogs.add(log);
                         totalAmount += log.getAmount();
+                        Log.d(TAG, "Loaded water log with ID: " + log.getId() + ", amount: " + log.getAmount());
                     }
+                    
                     waterLogAdapter.notifyDataSetChanged();
                     waterSeekBar.setProgress(totalAmount > MAX_WATER ? MAX_WATER : totalAmount);
                     updateWaterAmount(totalAmount > MAX_WATER ? MAX_WATER : totalAmount);
@@ -352,5 +371,15 @@ public class HomeFragment extends Fragment {
                             Toast.LENGTH_LONG).show();
                     }
                 });
+    }
+
+    @Override
+    public void onWaterLogDeleted(WaterLog waterLog, int position) {
+        try {
+            // Cập nhật lại tổng lượng nước sau khi xóa
+            loadWaterLogs();
+        } catch (Exception e) {
+            Log.e(TAG, "Lỗi cập nhật sau khi xóa: " + e.getMessage());
+        }
     }
 } 

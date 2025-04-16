@@ -1,115 +1,144 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.core.widget.NestedScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="16dp">
+    android:fillViewport="true">
 
-    <!-- Date Navigation -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center"
-        android:layout_marginBottom="24dp">
-
-        <ImageButton
-            android:id="@+id/previousDayButton"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:src="@android:drawable/ic_media_previous"
-            android:background="?attr/selectableItemBackgroundBorderless"/>
-
-        <TextView
-            android:id="@+id/dateTextView"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textSize="18sp"
-            android:layout_marginHorizontal="16dp"/>
-
-        <ImageButton
-            android:id="@+id/nextDayButton"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:src="@android:drawable/ic_media_next"
-            android:background="?attr/selectableItemBackgroundBorderless"/>
-
-    </LinearLayout>
-
-    <!-- Water Progress -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:gravity="center"
-        android:layout_marginBottom="24dp">
+        android:padding="16dp">
 
+        <!-- Lời chào người dùng -->
         <TextView
-            android:layout_width="wrap_content"
+            android:id="@+id/welcomeUserTextView"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Lượng nước hôm nay"
-            android:textSize="20sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="16dp"/>
-
-        <com.example.watacrab.views.WaterProgressView
-            android:id="@+id/waterProgressView"
-            android:layout_width="200dp"
-            android:layout_height="200dp"
-            android:layout_marginBottom="16dp"/>
-
-        <TextView
-            android:id="@+id/waterAmountText"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="0/2000 ml"
+            android:text="Xin chào, bạn!"
             android:textSize="24sp"
-            android:textStyle="bold"/>
+            android:textStyle="bold"
+            android:textColor="#4CAF50"
+            android:layout_marginBottom="16dp"/>
 
-    </LinearLayout>
+        <!-- Date Navigation -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="24dp">
 
-    <!-- Water Input -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:layout_marginBottom="24dp">
+            <ImageButton
+                android:id="@+id/previousDayButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@android:drawable/ic_media_previous"
+                android:background="?attr/selectableItemBackgroundBorderless"/>
 
+            <TextView
+                android:id="@+id/dateTextView"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="18sp"
+                android:layout_marginHorizontal="16dp"/>
+
+            <ImageButton
+                android:id="@+id/nextDayButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@android:drawable/ic_media_next"
+                android:background="?attr/selectableItemBackgroundBorderless"/>
+
+        </LinearLayout>
+
+        <!-- Water Progress -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:layout_marginBottom="24dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Lượng nước hôm nay"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="16dp"/>
+
+            <com.example.watacrab.views.WaterProgressView
+                android:id="@+id/waterProgressView"
+                android:layout_width="200dp"
+                android:layout_height="200dp"
+                android:layout_marginBottom="16dp"/>
+
+            <TextView
+                android:id="@+id/waterAmountText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0/2000 ml"
+                android:textSize="24sp"
+                android:textStyle="bold"/>
+
+        </LinearLayout>
+
+        <!-- Water Input -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginBottom="24dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Thêm nước"
+                android:textSize="18sp"
+                android:layout_marginBottom="8dp"/>
+
+            <SeekBar
+                android:id="@+id/waterSeekBar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:max="2000"
+                android:progress="0"/>
+
+            <Button
+                android:id="@+id/addWaterButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Thêm"
+                android:layout_marginTop="16dp"/>
+
+        </LinearLayout>
+
+        <!-- Water Logs -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Thêm nước"
+            android:text="Lịch sử uống nước"
             android:textSize="18sp"
             android:layout_marginBottom="8dp"/>
 
-        <SeekBar
-            android:id="@+id/waterSeekBar"
+        <!-- RecyclerView với chiều cao cố định để hiển thị ~5 mục -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/waterLogsRecyclerView"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:max="2000"
-            android:progress="0"/>
+            android:layout_height="250dp"
+            android:nestedScrollingEnabled="true"
+            android:background="@android:color/transparent"/>
 
-        <Button
-            android:id="@+id/addWaterButton"
+        <!-- Thêm nội dung khác nếu cần -->
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Thêm"
-            android:layout_marginTop="16dp"/>
+            android:layout_marginTop="16dp"
+            android:text="Gợi ý: Uống nước đều đặn giúp cơ thể khỏe mạnh"
+            android:textStyle="italic"/>
 
     </LinearLayout>
-
-    <!-- Water Logs -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Lịch sử uống nước"
-        android:textSize="18sp"
-        android:layout_marginBottom="8dp"/>
-
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/waterLogsRecyclerView"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"/>
-
-</LinearLayout> 
+</androidx.core.widget.NestedScrollView> 

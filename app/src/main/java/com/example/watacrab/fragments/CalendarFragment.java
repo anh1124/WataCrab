@@ -33,7 +33,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
-public class CalendarFragment extends Fragment {
+public class CalendarFragment extends Fragment implements WaterLogAdapter.OnWaterLogDeleteListener {
     private static final String TAG = "CalendarFragment";
     private CalendarView calendarView;
     private TextView selectedDateText;
@@ -74,8 +74,11 @@ public class CalendarFragment extends Fragment {
     }
 
     private void setupCalendar() {
-        // Set minimum date to today
-        calendarView.setMinDate(System.currentTimeMillis());
+        // Bỏ giới hạn ngày tối thiểu để có thể xem lịch sử
+        // Thay vì giới hạn ngày hiện tại, đặt ngày tối thiểu là 1 năm trước
+        Calendar minDate = Calendar.getInstance();
+        minDate.add(Calendar.YEAR, -1);  // Cho phép xem dữ liệu 1 năm trước
+        calendarView.setMinDate(minDate.getTimeInMillis());
 
         // Set date selection listener
         calendarView.setOnDateChangeListener(new CalendarView.OnDateChangeListener() {
@@ -101,6 +104,7 @@ public class CalendarFragment extends Fragment {
 
     private void setupRecyclerView() {
         waterLogAdapter = new WaterLogAdapter(waterLogs);
+        waterLogAdapter.setOnWaterLogDeleteListener(this);
         waterLogsRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
         waterLogsRecyclerView.setAdapter(waterLogAdapter);
     }
@@ -238,6 +242,24 @@ public class CalendarFragment extends Fragment {
                     Toast.LENGTH_SHORT).show();
             }
             retryCount = 0;
+        }
+    }
+
+    @Override
+    public void onWaterLogDeleted(WaterLog waterLog, int position) {
+        try {
+            // Cập nhật lại tổng lượng nước sau khi xóa
+            Calendar calendar = Calendar.getInstance();
+            calendar.setTime(waterLog.getTimestamp());
+            // Cập nhật tổng lượng nước
+            int totalAmount = 0;
+            for (WaterLog log : waterLogs) {
+                totalAmount += log.getAmount();
+            }
+            totalWaterAmountText.setText(String.format(Locale.getDefault(), 
+                "Tổng lượng nước: %d ml", totalAmount));
+        } catch (Exception e) {
+            Log.e(TAG, "Lỗi cập nhật sau khi xóa: " + e.getMessage());
         }
     }
 } 
