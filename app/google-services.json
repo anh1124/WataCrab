@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "165543867919",
+    "project_id": "watacrab-f2e70",
+    "storage_bucket": "watacrab-f2e70.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:165543867919:android:8eb3b81f0f59e2f67f157a",
+        "android_client_info": {
+          "package_name": "com.example.watacrab"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAOOcWiys0gjP--JTchBbWq2WXAIQ8mlu4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
