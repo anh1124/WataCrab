@@ -2,5 +2,6 @@
     <string name="app_name">WataCrab</string>
     <string name="title_home">Trang chủ</string>
     <string name="title_calendar">Lịch</string>
+    <string name="title_reminders">Nhắc nhở</string>
     <string name="title_profile">Hồ sơ</string>
 </resources>

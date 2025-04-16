@@ -15,6 +15,11 @@
         android:label="@string/title_calendar" />
 
     <fragment
+        android:id="@+id/navigation_reminders"
+        android:name="com.example.watacrab.fragments.RemindersFragment"
+        android:label="@string/title_reminders" />
+
+    <fragment
         android:id="@+id/navigation_profile"
         android:name="com.example.watacrab.fragments.UserProfileFragment"
         android:label="@string/title_profile" />
