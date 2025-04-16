@@ -1,5 +1,6 @@
 package com.example.watacrab.fragments;
 
+import android.content.Context;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -20,7 +21,9 @@ import com.example.watacrab.adapters.WaterLogAdapter;
 import com.example.watacrab.managers.UserManager;
 import com.example.watacrab.models.User;
 import com.example.watacrab.models.WaterLog;
+import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.FirebaseFirestoreException;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 
 import java.text.SimpleDateFormat;
@@ -34,12 +37,16 @@ public class CalendarFragment extends Fragment {
     private static final String TAG = "CalendarFragment";
     private CalendarView calendarView;
     private TextView selectedDateText;
+    private TextView totalWaterAmountText;
     private RecyclerView waterLogsRecyclerView;
     private WaterLogAdapter waterLogAdapter;
     private List<WaterLog> waterLogs;
     private FirebaseFirestore db;
     private User currentUser;
     private SimpleDateFormat dateFormat;
+    private int retryCount = 0;
+    private static final int MAX_RETRIES = 3;
+    private Date currentlyLoadingDate;
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
@@ -56,6 +63,7 @@ public class CalendarFragment extends Fragment {
         
         calendarView = view.findViewById(R.id.calendarView);
         selectedDateText = view.findViewById(R.id.selectedDateText);
+        totalWaterAmountText = view.findViewById(R.id.totalWaterAmountText);
         waterLogsRecyclerView = view.findViewById(R.id.waterLogsRecyclerView);
 
         setupCalendar();
@@ -114,6 +122,8 @@ public class CalendarFragment extends Fragment {
 
     private void loadWaterLogsForDate(Date date) {
         if (currentUser == null) return;
+        
+        currentlyLoadingDate = date;
 
         Calendar calendar = Calendar.getInstance();
         calendar.setTime(date);
@@ -135,15 +145,99 @@ public class CalendarFragment extends Fragment {
                 .get()
                 .addOnSuccessListener(queryDocumentSnapshots -> {
                     waterLogs.clear();
+                    int totalAmount = 0;
                     for (QueryDocumentSnapshot document : queryDocumentSnapshots) {
                         WaterLog waterLog = document.toObject(WaterLog.class);
                         waterLog.setId(document.getId());
                         waterLogs.add(waterLog);
+                        totalAmount += waterLog.getAmount();
                     }
                     waterLogAdapter.notifyDataSetChanged();
+                    // Update the total water amount text
+                    totalWaterAmountText.setText(String.format(Locale.getDefault(), 
+                        "Tổng lượng nước: %d ml", totalAmount));
+                    
+                    // Reset retry count on successful load
+                    retryCount = 0;
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Error loading water logs: " + e.getMessage());
+                    
+                    if (e instanceof FirebaseFirestoreException) {
+                        FirebaseFirestoreException firestoreException = (FirebaseFirestoreException) e;
+                        if (firestoreException.getCode() == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
+                            handlePermissionDenied();
+                        } else {
+                            totalWaterAmountText.setText("Tổng lượng nước: 0 ml");
+                            Toast.makeText(getContext(), "Lỗi tải dữ liệu: " + e.getMessage(), 
+                                Toast.LENGTH_LONG).show();
+                        }
+                    } else {
+                        totalWaterAmountText.setText("Tổng lượng nước: 0 ml");
+                        Toast.makeText(getContext(), "Lỗi tải dữ liệu: " + e.getMessage(), 
+                            Toast.LENGTH_LONG).show();
+                    }
                 });
+    }
+    
+    private void handlePermissionDenied() {
+        if (retryCount < MAX_RETRIES) {
+            retryCount++;
+            Log.d(TAG, "Attempting to refresh token, retry count: " + retryCount);
+            
+            // Đợi một chút trước khi thử lại
+            new android.os.Handler().postDelayed(() -> {
+                if (getActivity() == null || !isAdded()) return; // Kiểm tra fragment đã detach chưa
+                
+                if (FirebaseAuth.getInstance().getCurrentUser() != null) {
+                    FirebaseAuth.getInstance().getCurrentUser().getIdToken(true)
+                            .addOnSuccessListener(result -> {
+                                if (getActivity() == null || !isAdded()) return; // Kiểm tra fragment đã detach chưa
+                                
+                                Log.d(TAG, "Token refreshed successfully, waiting before retry...");
+                                // Đợi thêm một chút sau khi refresh token trước khi load lại dữ liệu
+                                new android.os.Handler().postDelayed(() -> {
+                                    if (getActivity() == null || !isAdded()) return; // Kiểm tra fragment đã detach chưa
+                                    
+                                    Log.d(TAG, "Retrying to load data after token refresh");
+                                    if (currentlyLoadingDate != null) {
+                                        loadWaterLogsForDate(currentlyLoadingDate);
+                                    }
+                                }, 1000); // Đợi 1 giây sau khi refresh token
+                            })
+                            .addOnFailureListener(e -> {
+                                if (getActivity() == null || !isAdded()) return; // Kiểm tra fragment đã detach chưa
+                                
+                                Log.e(TAG, "Error refreshing token: " + e.getMessage());
+                                
+                                // Kiểm tra context trước khi hiển thị Toast
+                                Context context = getContext();
+                                if (context != null) {
+                                    Toast.makeText(context, "Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.", 
+                                        Toast.LENGTH_SHORT).show();
+                                }
+                            });
+                } else {
+                    Log.e(TAG, "Cannot refresh token: user is not logged in");
+                    
+                    // Kiểm tra context trước khi hiển thị Toast
+                    Context context = getContext();
+                    if (context != null) {
+                        Toast.makeText(context, "Vui lòng đăng nhập để xem dữ liệu", 
+                            Toast.LENGTH_SHORT).show();
+                    }
+                }
+            }, 500); // Đợi 0.5 giây trước khi refresh token
+        } else {
+            Log.e(TAG, "Max retries reached (" + MAX_RETRIES + "), redirecting to login");
+            
+            // Kiểm tra context trước khi hiển thị Toast
+            Context context = getContext();
+            if (context != null) {
+                Toast.makeText(context, "Không thể truy cập dữ liệu. Vui lòng đăng nhập lại.", 
+                    Toast.LENGTH_SHORT).show();
+            }
+            retryCount = 0;
+        }
     }
 } 

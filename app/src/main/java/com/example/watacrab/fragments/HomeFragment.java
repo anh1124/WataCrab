@@ -193,50 +193,76 @@ public class HomeFragment extends Fragment {
     }
 
     private void addWaterLog() {
-        if (currentUser == null) {
-            Toast.makeText(getContext(), "Vui lòng đăng nhập để thêm lượng nước", 
-                Toast.LENGTH_SHORT).show();
-            return;
-        }
+        try {
+            if (currentUser == null) {
+                Toast.makeText(getContext(), "Vui lòng đăng nhập để thêm lượng nước", 
+                    Toast.LENGTH_SHORT).show();
+                return;
+            }
 
-        int amount = waterSeekBar.getProgress();
-        if (amount <= 0) {
-            Toast.makeText(getContext(), "Vui lòng nhập lượng nước lớn hơn 0", 
-                Toast.LENGTH_SHORT).show();
-            return;
-        }
+            int amount = waterSeekBar.getProgress();
+            if (amount <= 0) {
+                Toast.makeText(getContext(), "Vui lòng nhập lượng nước lớn hơn 0", 
+                    Toast.LENGTH_SHORT).show();
+                return;
+            }
 
-        WaterLog waterLog = new WaterLog();
-        waterLog.setUserId(currentUser.getId());
-        waterLog.setAmount(amount);
-        waterLog.setTimestamp(selectedDate.getTime());
+            // Tạo một bản sao của selectedDate để tránh lỗi
+            Date currentDate = selectedDate != null ? selectedDate.getTime() : new Date();
+            
+            // Create WaterLog using the constructor with safe null handling
+            WaterLog waterLog = new WaterLog(
+                currentUser.getId(), 
+                amount, 
+                ""  // Để trống ghi chú
+            );
+            
+            // Set timestamp manually
+            waterLog.setTimestamp(currentDate);
 
-        db.collection("water_logs")
-                .add(waterLog)
-                .addOnSuccessListener(documentReference -> {
-                    if (getActivity() == null || !isAdded()) return;
-                    
-                    Toast.makeText(getContext(), "Đã thêm " + amount + " ml nước", 
-                        Toast.LENGTH_SHORT).show();
-                    loadWaterLogs();
-                })
-                .addOnFailureListener(e -> {
-                    if (getActivity() == null || !isAdded()) return;
-                    
-                    if (e instanceof FirebaseFirestoreException) {
-                        FirebaseFirestoreException firestoreException = (FirebaseFirestoreException) e;
-                        if (firestoreException.getCode() == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
-                            handlePermissionDenied();
+            Log.d(TAG, "Thêm nước: " + amount + "ml, userId: " + currentUser.getId());
+
+            db.collection("water_logs")
+                    .add(waterLog)
+                    .addOnSuccessListener(documentReference -> {
+                        if (getActivity() == null || !isAdded()) return;
+                        
+                        try {
+                            Toast.makeText(getContext(), "Đã thêm " + amount + " ml nước", 
+                                Toast.LENGTH_SHORT).show();
+                            // Reset waterSeekBar an toàn
+                            if (waterSeekBar != null) {
+                                waterSeekBar.setProgress(0);
+                                updateWaterAmount(0);
+                            }
+                            loadWaterLogs();
+                        } catch (Exception e) {
+                            Log.e(TAG, "Lỗi sau khi thêm nước: " + e.getMessage());
+                        }
+                    })
+                    .addOnFailureListener(e -> {
+                        if (getActivity() == null || !isAdded()) return;
+                        
+                        Log.e(TAG, "Lỗi khi thêm nước: " + e.getMessage());
+                        
+                        if (e instanceof FirebaseFirestoreException) {
+                            FirebaseFirestoreException firestoreException = (FirebaseFirestoreException) e;
+                            if (firestoreException.getCode() == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
+                                handlePermissionDenied();
+                            } else {
+                                Toast.makeText(getContext(), "Lỗi: " + e.getMessage(), 
+                                    Toast.LENGTH_LONG).show();
+                            }
                         } else {
                             Toast.makeText(getContext(), "Lỗi: " + e.getMessage(), 
                                 Toast.LENGTH_LONG).show();
                         }
-                    } else {
-                        Toast.makeText(getContext(), "Lỗi: " + e.getMessage(), 
-                            Toast.LENGTH_LONG).show();
-                    }
-                    Log.e(TAG, "Error adding water log: " + e.getMessage());
-                });
+                    });
+        } catch (Exception e) {
+            Log.e(TAG, "Lỗi nghiêm trọng khi thêm nước: " + e.getMessage());
+            Toast.makeText(getContext(), "Không thể thêm nước: " + e.getMessage(), 
+                Toast.LENGTH_LONG).show();
+        }
     }
 
     private void handlePermissionDenied() {
