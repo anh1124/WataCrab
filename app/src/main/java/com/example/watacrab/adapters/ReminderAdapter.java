@@ -8,7 +8,6 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.CompoundButton;
 import android.widget.ImageButton;
 import android.widget.Switch;
 import android.widget.TextView;
@@ -18,7 +17,7 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.watacrab.R;
-import com.example.watacrab.models.Reminder;
+import com.example.watacrab.model.Reminder;
 import com.example.watacrab.receivers.ReminderReceiver;
 import com.google.firebase.firestore.FirebaseFirestore;
 
@@ -51,7 +50,7 @@ public class ReminderAdapter extends RecyclerView.Adapter<ReminderAdapter.Remind
         Reminder reminder = reminderList.get(position);
         
         holder.tvTitle.setText(reminder.getTitle());
-        holder.tvTime.setText(timeFormat.format(reminder.getTime()));
+        holder.tvTime.setText(reminder.getTime() != null ? timeFormat.format(reminder.getTime()) : "00:00");
         holder.tvRepeat.setVisibility(reminder.isDaily() ? View.VISIBLE : View.GONE);
         holder.switchActive.setChecked(reminder.isActive());
         
@@ -64,6 +63,11 @@ public class ReminderAdapter extends RecyclerView.Adapter<ReminderAdapter.Remind
                 listener.onReminderToggle(reminder, isChecked);
             }
         });
+        
+        // Thiết lập sự kiện cho nút xóa
+        holder.btnDelete.setOnClickListener(v -> {
+            listener.onReminderDelete(reminder, position);
+        });
     }
 
     @Override
@@ -74,6 +78,7 @@ public class ReminderAdapter extends RecyclerView.Adapter<ReminderAdapter.Remind
     public static class ReminderViewHolder extends RecyclerView.ViewHolder {
         TextView tvTitle, tvTime, tvRepeat;
         Switch switchActive;
+        ImageButton btnDelete;
 
         public ReminderViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -81,12 +86,14 @@ public class ReminderAdapter extends RecyclerView.Adapter<ReminderAdapter.Remind
             tvTime = itemView.findViewById(R.id.tvReminderTime);
             tvRepeat = itemView.findViewById(R.id.tvRepeatIndicator);
             switchActive = itemView.findViewById(R.id.switchReminderActive);
+            btnDelete = itemView.findViewById(R.id.btnDeleteReminder);
         }
     }
 
     public interface OnReminderClickListener {
         void onReminderClick(Reminder reminder, int position);
         void onReminderToggle(Reminder reminder, boolean isActive);
+        void onReminderDelete(Reminder reminder, int position);
     }
 
     private void updateReminderStatus(Context context, Reminder reminder, boolean isActive) {
@@ -152,9 +159,14 @@ public class ReminderAdapter extends RecyclerView.Adapter<ReminderAdapter.Remind
                 });
     }
 
-    // Hàm thiết lập lời nhắc sử dụng AlarmManager
+    // Helper methods for scheduling reminders
     public static void scheduleReminder(Context context, Reminder reminder) {
         AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        if (alarmManager == null) {
+            Log.e(TAG, "AlarmManager không khả dụng");
+            return;
+        }
+        
         Intent intent = new Intent(context, ReminderReceiver.class);
         intent.putExtra("REMINDER_ID", reminder.getId());
         intent.putExtra("REMINDER_TITLE", reminder.getTitle());
@@ -162,12 +174,28 @@ public class ReminderAdapter extends RecyclerView.Adapter<ReminderAdapter.Remind
         // Tạo ID duy nhất cho PendingIntent dựa trên ID của reminder
         int requestCode = reminder.getId().hashCode();
         
-        PendingIntent pendingIntent = PendingIntent.getBroadcast(
-                context,
-                requestCode,
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-        );
+        // Log chi tiết để debug
+        Log.d(TAG, "Đặt lịch cho lời nhắc ID: " + reminder.getId());
+        Log.d(TAG, "Tiêu đề: " + reminder.getTitle());
+        Log.d(TAG, "Thời gian: " + reminder.getTime());
+        
+        PendingIntent pendingIntent;
+        try {
+            pendingIntent = PendingIntent.getBroadcast(
+                    context,
+                    requestCode,
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+            );
+        } catch (Exception e) {
+            Log.e(TAG, "Lỗi tạo PendingIntent: " + e.getMessage());
+            return;
+        }
+        
+        if (pendingIntent == null) {
+            Log.e(TAG, "PendingIntent là null");
+            return;
+        }
         
         // Thiết lập thời gian
         Calendar calendar = Calendar.getInstance();
@@ -179,6 +207,7 @@ public class ReminderAdapter extends RecyclerView.Adapter<ReminderAdapter.Remind
         // Nếu thời gian đã qua và là lời nhắc lặp lại, đặt cho ngày tiếp theo
         if (calendar.before(now) && reminder.isDaily()) {
             calendar.add(Calendar.DAY_OF_YEAR, 1);
+            Log.d(TAG, "Thời gian đã qua, đặt cho ngày mai: " + calendar.getTime());
         }
         
         // Nếu thời gian đã qua và không lặp lại, không thiết lập
@@ -189,29 +218,42 @@ public class ReminderAdapter extends RecyclerView.Adapter<ReminderAdapter.Remind
         
         Log.d(TAG, "Thiết lập lời nhắc tại: " + calendar.getTime());
         
-        if (reminder.isDaily()) {
-            // Nếu lặp lại hàng ngày, sử dụng setRepeating
-            alarmManager.setRepeating(
-                    AlarmManager.RTC_WAKEUP,
-                    calendar.getTimeInMillis(),
-                    AlarmManager.INTERVAL_DAY,
-                    pendingIntent
-            );
-        } else {
-            // Nếu chỉ một lần
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-                alarmManager.setExactAndAllowWhileIdle(
+        try {
+            if (reminder.isDaily()) {
+                // Nếu lặp lại hàng ngày, sử dụng setRepeating
+                alarmManager.setRepeating(
                         AlarmManager.RTC_WAKEUP,
                         calendar.getTimeInMillis(),
+                        AlarmManager.INTERVAL_DAY,
                         pendingIntent
                 );
+                Log.d(TAG, "Đã đặt lời nhắc lặp lại hàng ngày");
             } else {
-                alarmManager.setExact(
-                        AlarmManager.RTC_WAKEUP,
-                        calendar.getTimeInMillis(),
-                        pendingIntent
-                );
+                // Nếu chỉ một lần
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                    alarmManager.setExactAndAllowWhileIdle(
+                            AlarmManager.RTC_WAKEUP,
+                            calendar.getTimeInMillis(),
+                            pendingIntent
+                    );
+                    Log.d(TAG, "Đã đặt lời nhắc chính xác (ExactAndAllowWhileIdle)");
+                } else {
+                    alarmManager.setExact(
+                            AlarmManager.RTC_WAKEUP,
+                            calendar.getTimeInMillis(),
+                            pendingIntent
+                    );
+                    Log.d(TAG, "Đã đặt lời nhắc chính xác (setExact)");
+                }
             }
+            
+            // Kiểm tra xem PendingIntent có hoạt động không
+            boolean pendingIntentExists = (PendingIntent.getBroadcast(context, requestCode, intent, 
+                    PendingIntent.FLAG_NO_CREATE | PendingIntent.FLAG_IMMUTABLE) != null);
+            Log.d(TAG, "PendingIntent tồn tại: " + pendingIntentExists);
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Lỗi khi đặt báo thức: " + e.getMessage());
         }
     }
     

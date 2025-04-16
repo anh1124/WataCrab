@@ -34,7 +34,7 @@
             android:layout_marginEnd="16dp"
             android:text="Wake up"
             android:textSize="18sp"
-            app:layout_constraintEnd_toStartOf="@+id/switchReminderActive"
+            app:layout_constraintEnd_toStartOf="@+id/btnDeleteReminder"
             app:layout_constraintStart_toEndOf="@+id/tvReminderTime"
             app:layout_constraintTop_toTopOf="parent" />
 
@@ -48,14 +48,27 @@
             android:text="Daily"
             android:textSize="14sp"
             android:textColor="#757575"
-            app:layout_constraintEnd_toStartOf="@+id/switchReminderActive"
+            app:layout_constraintEnd_toStartOf="@+id/btnDeleteReminder"
             app:layout_constraintStart_toEndOf="@+id/tvReminderTime"
             app:layout_constraintTop_toBottomOf="@+id/tvReminderTitle" />
+
+        <ImageButton
+            android:id="@+id/btnDeleteReminder"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Delete reminder"
+            android:padding="8dp"
+            android:src="@android:drawable/ic_menu_delete"
+            app:layout_constraintEnd_toStartOf="@+id/switchReminderActive"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent" />
 
         <Switch
             android:id="@+id/switchReminderActive"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent" />

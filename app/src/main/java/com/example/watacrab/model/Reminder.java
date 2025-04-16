@@ -1,41 +1,39 @@
 package com.example.watacrab.model;
 
 import java.io.Serializable;
+import java.util.Date;
+import java.util.UUID;
 
 public class Reminder implements Serializable {
-    private int id;
-    private String time;  // Format: "HH:mm"
+    private String id;
     private String title;
-    private String repeatInfo;
-    private boolean enabled;
+    private Date time;
+    private boolean isActive;
+    private boolean isDaily;
+    private String userId;
 
     // Empty constructor for Firebase
     public Reminder() {
+        this.id = UUID.randomUUID().toString();
+        this.isActive = true;
     }
 
-    public Reminder(int id, String time, String title, String repeatInfo, boolean enabled) {
-        this.id = id;
-        this.time = time;
+    public Reminder(String title, Date time, boolean isDaily, String userId) {
+        this.id = UUID.randomUUID().toString();
         this.title = title;
-        this.repeatInfo = repeatInfo;
-        this.enabled = enabled;
+        this.time = time;
+        this.isActive = true;
+        this.isDaily = isDaily;
+        this.userId = userId;
     }
 
     // Getters and Setters
-    public int getId() {
+    public String getId() {
         return id;
     }
 
-    public void setId(int id) {
+    public void setId(String id) {
         this.id = id;
-    }
-
-    public String getTime() {
-        return time;
-    }
-
-    public void setTime(String time) {
-        this.time = time;
     }
 
     public String getTitle() {
@@ -46,19 +44,41 @@ public class Reminder implements Serializable {
         this.title = title;
     }
 
-    public String getRepeatInfo() {
-        return repeatInfo;
+    public Date getTime() {
+        return time;
     }
 
-    public void setRepeatInfo(String repeatInfo) {
-        this.repeatInfo = repeatInfo;
+    public void setTime(Date time) {
+        this.time = time;
     }
 
-    public boolean isEnabled() {
-        return enabled;
+    public boolean isActive() {
+        return isActive;
     }
 
-    public void setEnabled(boolean enabled) {
-        this.enabled = enabled;
+    public void setActive(boolean active) {
+        isActive = active;
+    }
+
+    public boolean isDaily() {
+        return isDaily;
+    }
+
+    public void setDaily(boolean daily) {
+        isDaily = daily;
+    }
+
+    public String getUserId() {
+        return userId;
+    }
+
+    public void setUserId(String userId) {
+        this.userId = userId;
+    }
+
+    // Helper method to get formatted time string
+    public String getTimeString() {
+        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault());
+        return time != null ? sdf.format(time) : "00:00";
     }
 } 

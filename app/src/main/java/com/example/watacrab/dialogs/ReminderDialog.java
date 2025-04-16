@@ -25,6 +25,7 @@ import com.google.firebase.database.FirebaseDatabase;
 
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
+import java.util.Date;
 import java.util.Locale;
 
 public class ReminderDialog extends DialogFragment implements TimePickerDialog.OnTimeSetListener {
@@ -69,10 +70,13 @@ public class ReminderDialog extends DialogFragment implements TimePickerDialog.O
             editReminder = (Reminder) getArguments().getSerializable("reminder");
             isEditMode = true;
             
-            // Parse time from string format (HH:mm)
-            String[] timeParts = editReminder.getTime().split(":");
-            selectedHour = Integer.parseInt(timeParts[0]);
-            selectedMinute = Integer.parseInt(timeParts[1]);
+            // Get hour and minute from Date object
+            if (editReminder.getTime() != null) {
+                Calendar calendar = Calendar.getInstance();
+                calendar.setTime(editReminder.getTime());
+                selectedHour = calendar.get(Calendar.HOUR_OF_DAY);
+                selectedMinute = calendar.get(Calendar.MINUTE);
+            }
         }
     }
     
@@ -114,14 +118,9 @@ public class ReminderDialog extends DialogFragment implements TimePickerDialog.O
         if (isEditMode) {
             etTitle.setText(editReminder.getTitle());
             
-            // Set repeat option based on repeatInfo
-            String repeatInfo = editReminder.getRepeatInfo();
-            if ("Daily".equals(repeatInfo)) {
+            // Set appropriate radio button based on isDaily flag
+            if (editReminder.isDaily()) {
                 rbDaily.setChecked(true);
-            } else if ("Weekdays".equals(repeatInfo)) {
-                rbWeekdays.setChecked(true);
-            } else if ("Weekends".equals(repeatInfo)) {
-                rbWeekends.setChecked(true);
             } else {
                 rbOnce.setChecked(true);
             }
@@ -167,47 +166,40 @@ public class ReminderDialog extends DialogFragment implements TimePickerDialog.O
             return;
         }
         
-        // Format time
-        String time = String.format(Locale.US, "%02d:%02d", selectedHour, selectedMinute);
+        // Create a Date object for the selected time
+        Calendar calendar = Calendar.getInstance();
+        calendar.set(Calendar.HOUR_OF_DAY, selectedHour);
+        calendar.set(Calendar.MINUTE, selectedMinute);
+        calendar.set(Calendar.SECOND, 0);
+        calendar.set(Calendar.MILLISECOND, 0);
+        Date reminderTime = calendar.getTime();
         
-        // Get selected repeat option
-        String repeatInfo;
-        int selectedId = rgRepeat.getCheckedRadioButtonId();
-        if (selectedId == R.id.rbDaily) {
-            repeatInfo = "Daily";
-        } else if (selectedId == R.id.rbWeekdays) {
-            repeatInfo = "Weekdays";
-        } else if (selectedId == R.id.rbWeekends) {
-            repeatInfo = "Weekends";
-        } else {
-            repeatInfo = "Once";
-        }
+        // Determine if reminder is daily based on radio selection
+        boolean isDaily = rgRepeat.getCheckedRadioButtonId() == R.id.rbDaily;
         
-        DatabaseReference remindersRef = FirebaseDatabase.getInstance()
-                .getReference("users")
-                .child(FirebaseAuth.getInstance().getCurrentUser().getUid())
-                .child("reminders");
+        // Get current user ID
+        String userId = FirebaseAuth.getInstance().getCurrentUser() != null ?
+                FirebaseAuth.getInstance().getCurrentUser().getUid() : "default_user";
         
         Reminder reminder;
         if (isEditMode) {
             // Update existing reminder
             reminder = editReminder;
-            reminder.setTime(time);
+            reminder.setTime(reminderTime);
             reminder.setTitle(title);
-            reminder.setRepeatInfo(repeatInfo);
+            reminder.setDaily(isDaily);
         } else {
-            // Create new reminder with unique ID
-            String reminderId = remindersRef.push().getKey();
-            reminder = new Reminder(
-                    Integer.parseInt(reminderId),
-                    time,
-                    title,
-                    repeatInfo,
-                    true);
+            // Create new reminder
+            reminder = new Reminder(title, reminderTime, isDaily, userId);
         }
         
         // Save to Firebase
-        remindersRef.child(String.valueOf(reminder.getId())).setValue(reminder);
+        DatabaseReference remindersRef = FirebaseDatabase.getInstance()
+                .getReference("users")
+                .child(userId)
+                .child("reminders");
+        
+        remindersRef.child(reminder.getId()).setValue(reminder);
         
         // Notify listener
         if (reminderSavedListener != null) {
